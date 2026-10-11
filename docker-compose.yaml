@@ -1,3 +1,26 @@
+# Shared Airflow config: a top-level x- extension field, so Compose does not start it as a service
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  # one image tag shared by airflow-init, webserver and scheduler (built once)
+  image: cs611-a2-airflow:latest
+  # same uid as the jupyter container, so both can overwrite datamart/, model_store/ and reports/
+  user: "0:0"
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__DAGS_FOLDER: /app/dags
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+    AIRFLOW_HOME: /app/airflow_home
+    PYTHONPATH: /app
+  volumes:
+    - .:/app
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 services:
 
   # ── Development ─────────────────────────────────────────────────────────────
@@ -29,27 +52,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ── Airflow services (built from Dockerfile.airflow) ────────────────────────
-  x-airflow-common: &airflow-common
-    build:
-      context: .
-      dockerfile: Dockerfile.airflow
-    # same uid as the jupyter container, so both can overwrite datamart/, model_store/ and reports/
-    user: "0:0"
-    environment: &airflow-env
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
-      AIRFLOW__CORE__DAGS_FOLDER: /app/dags
-      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
-      AIRFLOW_HOME: /app/airflow_home
-      PYTHONPATH: /app
-    volumes:
-      - .:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-
+  # ── Airflow services (shared x-airflow-common config at the top) ────────────
   airflow-init:
     <<: *airflow-common
     container_name: airflow_init
