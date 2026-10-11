@@ -1,0 +1,93 @@
+# expected schema for gold.feature_store (validated before every write)
+columns:
+  Customer_ID: string
+  snapshot_date: date
+  # raw numerics
+  age: int
+  annual_income: float
+  monthly_inhand_salary: float
+  num_bank_accounts: int
+  num_credit_card: int
+  interest_rate: int
+  num_of_loan: int
+  delay_from_due_date: int
+  num_of_delayed_payment: int
+  changed_credit_limit: float
+  num_credit_inquiries: int
+  outstanding_debt: float
+  credit_utilization_ratio: float
+  credit_history_age_months: int
+  total_emi_per_month: float
+  amount_invested_monthly: float
+  monthly_balance: float
+  # ordinal / binary categoricals (-1 = missing sentinel)
+  credit_mix: int
+  pays_min_amount_only: int
+  spend_level: int
+  payment_value: int
+  # financial ratios (original)
+  debt_to_annual_income: float
+  emi_to_monthly_salary: float
+  invested_to_monthly_salary: float
+  # new engineered features
+  repayment_ability: float
+  loans_per_credit_item: float
+  loan_extent: float
+  inq_per_loan: float
+  balance_to_debt: float
+  has_credit_limit_change: int
+  # age group one-hot bins + missing flag
+  age_lt_25: int
+  age_25_39: int
+  age_40_54: int
+  age_55_plus: int
+  age_missing: int
+  # loan type counts
+  loan_type_auto: int
+  loan_type_credit_builder: int
+  loan_type_debt_consolidation: int
+  loan_type_home_equity: int
+  loan_type_mortgage: int
+  loan_type_not_specified: int
+  loan_type_payday: int
+  loan_type_personal: int
+  loan_type_student: int
+  # occupation one-hots
+  occupation_accountant: int
+  occupation_architect: int
+  occupation_developer: int
+  occupation_doctor: int
+  occupation_engineer: int
+  occupation_entrepreneur: int
+  occupation_journalist: int
+  occupation_lawyer: int
+  occupation_manager: int
+  occupation_mechanic: int
+  occupation_media_manager: int
+  occupation_musician: int
+  occupation_scientist: int
+  occupation_teacher: int
+  occupation_writer: int
+  occupation_missing: int
+  # clickstream aggregated means across all months up to snapshot_date
+  fe_1: float
+  fe_2: float
+  fe_3: float
+  fe_4: float
+  fe_5: float
+  fe_6: float
+  fe_7: float
+  fe_8: float
+  fe_9: float
+  fe_10: float
+  fe_11: float
+  fe_12: float
+  fe_13: float
+  fe_14: float
+  fe_15: float
+  fe_16: float
+  fe_17: float
+  fe_18: float
+  fe_19: float
+  fe_20: float
+  has_clickstream: int

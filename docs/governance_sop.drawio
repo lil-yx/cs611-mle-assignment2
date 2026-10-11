@@ -1,0 +1,89 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="governance-sop" name="Model Governance SOP">
+    <mxGraphModel dx="1400" dy="800" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="700" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- lanes -->
+        <mxCell id="lane1" value="MONTHLY · automated by Airflow" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F8FAFC;strokeColor=#CBD5E1;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;fontSize=15;fontStyle=1;fontColor=#475569;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1660" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="lane2" value="RETRAIN &amp; RELEASE · human-in-the-loop" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#BFDBFE;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;fontSize=15;fontStyle=1;fontColor=#1E40AF;arcSize=4;" vertex="1" parent="1">
+          <mxGeometry x="20" y="345" width="1660" height="330" as="geometry" />
+        </mxCell>
+
+        <!-- monthly lane -->
+        <mxCell id="score" value="&lt;b&gt;Score month t&lt;/b&gt;&lt;br&gt;champion.json → batch&lt;br&gt;→ gold.predictions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A01B5B;strokeColor=#6A0E3C;fontColor=#FFFFFF;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="45" y="120" width="190" height="95" as="geometry" />
+        </mxCell>
+        <mxCell id="mon" value="&lt;b&gt;Monitor&lt;/b&gt;&lt;br&gt;PSI on scores (month t)&lt;br&gt;AUC / Gini on labels&lt;br&gt;(loans from t−6, now matured)&lt;br&gt;→ gold.model_monitoring" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16A085;strokeColor=#0E6B57;fontColor=#FFFFFF;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="290" y="105" width="230" height="125" as="geometry" />
+        </mxCell>
+        <mxCell id="light" value="&lt;b&gt;Traffic&lt;br&gt;light&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;strokeWidth=2;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="575" y="112" width="130" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="green" value="&lt;b&gt;GREEN&lt;/b&gt;  PSI &amp;lt; 0.10 and Gini ≥ 0.57&lt;br&gt;→ continue · result logged, no action" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=14;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="55" width="430" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="amber" value="&lt;b&gt;AMBER&lt;/b&gt;  PSI 0.10–0.25 or Gini 0.50–0.57&lt;br&gt;→ investigate: per-feature PSI, data-quality report;&lt;br&gt;2 consecutive ambers escalate to RED" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=14;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="135" width="430" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="red" value="&lt;b&gt;RED&lt;/b&gt;  PSI ≥ 0.25 or Gini &amp;lt; 0.50&lt;br&gt;→ open retrain ticket" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontSize=14;align=left;spacingLeft=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="230" width="430" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="sched" value="&lt;b&gt;Time-based refresh&lt;/b&gt;&lt;br&gt;every 6 months, even if GREEN&lt;br&gt;(absorbs slow drift)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#2563EB;dashed=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1290" y="110" width="250" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- retrain lane -->
+        <mxCell id="trig" value="&lt;b&gt;Trigger&lt;/b&gt;&lt;br&gt;roll train_cutoff forward&lt;br&gt;in config/base.yaml&lt;br&gt;&lt;font face='Courier New'&gt;force_retrain=true&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="45" y="430" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="retrain" value="&lt;b&gt;Retrain challenger&lt;/b&gt;&lt;br&gt;LR / RF / XGBoost&lt;br&gt;Optuna TPE · 5-fold CV&lt;br&gt;new model_id in model_store/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3B3B98;strokeColor=#1A1A6E;fontColor=#FFFFFF;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="320" y="430" width="230" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="compare" value="&lt;b&gt;Challenger vs champion&lt;/b&gt;&lt;br&gt;same latest out-of-time&lt;br&gt;window · Gini, PSI,&lt;br&gt;SHAP top-10 sanity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B3B98;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="605" y="430" width="230" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="gate" value="&lt;b&gt;ΔGini ≥ +0.01&lt;br&gt;&amp;amp; stable?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="890" y="425" width="150" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="signoff" value="&lt;b&gt;Model-risk sign-off&lt;/b&gt;&lt;br&gt;metadata.json + SHAP&lt;br&gt;summary as evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#16A34A;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="395" width="230" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="swap" value="&lt;b&gt;Promote&lt;/b&gt;&lt;br&gt;atomic swap of&lt;br&gt;champion.json pointer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="395" width="250" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="keep" value="&lt;b&gt;Keep champion&lt;/b&gt;&lt;br&gt;challenger archived with&lt;br&gt;its metrics for audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#64748B;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1110" y="560" width="230" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="rollback" value="&lt;b&gt;Rollback&lt;/b&gt; = repoint champion.json&lt;br&gt;to the previous model_id (seconds)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#DC2626;dashed=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1400" y="560" width="250" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- edges monthly -->
+        <mxCell id="m1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#0F1B35;strokeWidth=2;" edge="1" parent="1" source="score" target="mon"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#0F1B35;strokeWidth=2;" edge="1" parent="1" source="mon" target="light"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#16A34A;strokeWidth=2;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="light" target="green"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m4" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#D97706;strokeWidth=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="light" target="amber"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#DC2626;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="light" target="red"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="m6" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;dashed=1;strokeColor=#D97706;" edge="1" parent="1" source="amber" target="red"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1240" y="175" /><mxPoint x="1240" y="262" /></Array></mxGeometry></mxCell>
+
+        <!-- cross-lane triggers -->
+        <mxCell id="x1" value="RED" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#DC2626;strokeWidth=2;fontColor=#DC2626;fontSize=13;fontStyle=1;" edge="1" parent="1" source="red" target="trig"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="995" y="335" /><mxPoint x="155" y="335" /></Array></mxGeometry></mxCell>
+        <mxCell id="x2" value="every 6 months" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#2563EB;dashed=1;fontColor=#2563EB;fontSize=13;" edge="1" parent="1" source="sched" target="trig"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="1415" y="335" /><mxPoint x="155" y="335" /></Array></mxGeometry></mxCell>
+
+        <!-- edges retrain -->
+        <mxCell id="r1" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#0F1B35;strokeWidth=2;" edge="1" parent="1" source="trig" target="retrain"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r2" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#0F1B35;strokeWidth=2;" edge="1" parent="1" source="retrain" target="compare"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r3" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#0F1B35;strokeWidth=2;" edge="1" parent="1" source="compare" target="gate"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r4" value="yes" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#16A34A;strokeWidth=2;fontColor=#16A34A;fontSize=13;fontStyle=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate" target="signoff"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r5" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#16A34A;strokeWidth=2;" edge="1" parent="1" source="signoff" target="swap"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r6" value="no" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#64748B;strokeWidth=2;fontColor=#64748B;fontSize=13;fontStyle=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="gate" target="keep"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="r7" style="edgeStyle=orthogonalEdgeStyle;html=1;endArrow=block;strokeColor=#DC2626;dashed=1;" edge="1" parent="1" source="swap" target="rollback"><mxGeometry relative="1" as="geometry" /></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

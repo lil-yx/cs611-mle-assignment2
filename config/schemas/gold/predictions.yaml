@@ -1,0 +1,8 @@
+# expected schema for gold.predictions (validated before every write)
+columns:
+  Customer_ID: string
+  snapshot_date: date
+  score: float
+  prediction: int
+  model_id: string
+  scored_at: timestamp

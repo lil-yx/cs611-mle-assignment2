@@ -1,0 +1,24 @@
+# expected schema for silver.clickstream (validated before every write)
+columns:
+  Customer_ID: string
+  fe_1: int
+  fe_2: int
+  fe_3: int
+  fe_4: int
+  fe_5: int
+  fe_6: int
+  fe_7: int
+  fe_8: int
+  fe_9: int
+  fe_10: int
+  fe_11: int
+  fe_12: int
+  fe_13: int
+  fe_14: int
+  fe_15: int
+  fe_16: int
+  fe_17: int
+  fe_18: int
+  fe_19: int
+  fe_20: int
+  snapshot_date: date

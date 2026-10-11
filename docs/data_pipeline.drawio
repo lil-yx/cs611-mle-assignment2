@@ -1,0 +1,107 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram id="medallion-pipeline" name="Medallion Data Pipeline">
+    <mxGraphModel dx="1400" dy="900" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1560" pageHeight="1340" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============ RAW SOURCES ============ -->
+        <mxCell id="hdr_raw" value="RAW  ·  4 CSV source systems" style="text;html=1;align=left;verticalAlign=middle;fontSize=18;fontStyle=1;fontColor=#6B7280;" vertex="1" parent="1">
+          <mxGeometry x="50" y="55" width="400" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="raw_lms" value="lms_loan_daily.csv&lt;br&gt;&lt;font color='#6B7280'&gt;loan repayment ledger&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="70" y="90" width="270" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="raw_attr" value="features_attributes.csv&lt;br&gt;&lt;font color='#6B7280'&gt;demographics&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="420" y="90" width="270" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="raw_fin" value="features_financials.csv&lt;br&gt;&lt;font color='#6B7280'&gt;credit &amp; income&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="770" y="90" width="270" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="raw_click" value="feature_clickstream.csv&lt;br&gt;&lt;font color='#6B7280'&gt;behaviour fe_1..fe_20&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=12;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="90" width="270" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ============ BRONZE ============ -->
+        <mxCell id="band_bronze" value="BRONZE   ·   land as-is, no cleaning   —   all columns text · filtered by snapshot_date · written one partition per month (CSV)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FDF6EC;strokeColor=#E0A458;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;fontSize=15;fontStyle=1;fontColor=#B45309;" vertex="1" parent="1">
+          <mxGeometry x="50" y="210" width="1340" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="b_lms" value="bronze_lms_loan_daily" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9CF;strokeColor=#D98924;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="70" y="255" width="270" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="b_attr" value="bronze_attributes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9CF;strokeColor=#D98924;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="420" y="255" width="270" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="b_fin" value="bronze_financials" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9CF;strokeColor=#D98924;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="770" y="255" width="270" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="b_click" value="bronze_clickstream" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCE9CF;strokeColor=#D98924;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="255" width="270" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ============ SILVER ============ -->
+        <mxCell id="band_silver" value="SILVER   ·   enforce types · clean dirty values · derive fields   —   schema + duplicate checks on every write (validate_and_write)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF6EE;strokeColor=#79B47C;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;fontSize=15;fontStyle=1;fontColor=#2E7D32;" vertex="1" parent="1">
+          <mxGeometry x="50" y="370" width="1340" height="250" as="geometry" />
+        </mxCell>
+        <mxCell id="s_lms" value="silver_lms_loan_daily&lt;br&gt;&lt;br&gt;&lt;font color='#475569'&gt;cast 11 typed columns&lt;br&gt;mob = installment_num&lt;br&gt;installments_missed = ⌈overdue/due⌉&lt;br&gt;first_missed_date&lt;br&gt;&lt;b&gt;dpd&lt;/b&gt; = datediff(snapshot, first_missed)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEFDD;strokeColor=#4C9A50;fontSize=12;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="415" width="270" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="s_attr" value="silver_attributes&lt;br&gt;&lt;br&gt;&lt;font color='#475569'&gt;drop PII (Name, SSN)&lt;br&gt;clean Age → int, valid 14–100&lt;br&gt;clean Occupation&lt;br&gt;(invalid category → null)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEFDD;strokeColor=#4C9A50;fontSize=12;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="420" y="415" width="270" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="s_fin" value="silver_financials&lt;br&gt;&lt;br&gt;&lt;font color='#475569'&gt;clean 14 numerics · range-clip&lt;br&gt;income ≤ 36×salary · EMI ≤ salary&lt;br&gt;Credit_History_Age → months&lt;br&gt;recount Num_of_Loan from list&lt;br&gt;(source −100/1495 corrupt)&lt;br&gt;Credit_Mix/Min_Amount/Behaviour&lt;br&gt;clean · &quot;NM&quot; → null&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEFDD;strokeColor=#4C9A50;fontSize=12;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="770" y="415" width="270" height="185" as="geometry" />
+        </mxCell>
+        <mxCell id="s_click" value="silver_clickstream&lt;br&gt;&lt;br&gt;&lt;font color='#475569'&gt;cast fe_1..fe_20 → int&lt;br&gt;dedup on&lt;br&gt;(Customer_ID, snapshot_date)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCEFDD;strokeColor=#4C9A50;fontSize=12;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="415" width="270" height="185" as="geometry" />
+        </mxCell>
+
+        <!-- ============ GOLD ============ -->
+        <mxCell id="band_gold" value="GOLD   ·   ML-ready stores" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FBF3E2;strokeColor=#C79A3A;strokeWidth=2;verticalAlign=top;align=left;spacingLeft=14;spacingTop=8;fontSize=15;fontStyle=1;fontColor=#8A6D1B;" vertex="1" parent="1">
+          <mxGeometry x="50" y="660" width="1340" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="label_store" value="label_store&lt;br&gt;&lt;br&gt;&lt;font color='#475569'&gt;from loan ledger at &lt;b&gt;mob = 6&lt;/b&gt;&lt;br&gt;&lt;b&gt;label = (dpd ≥ 30)&lt;/b&gt; → 0/1&lt;br&gt;label_def = &quot;30dpd_6mob&quot;&lt;br&gt;keeps loan_start_date (join key)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F6E4BC;strokeColor=#B8860B;fontSize=12;align=left;spacingLeft=10;verticalAlign=top;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="70" y="700" width="300" height="145" as="geometry" />
+        </mxCell>
+        <mxCell id="feature_store" value="feature_store   ·   ~70 features, one row per (Customer_ID, snapshot_date)&lt;br&gt;&lt;font color='#475569'&gt;join attributes ⋈ financials on (Customer_ID, snapshot_date), then LEFT-join aggregated clickstream&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F6E4BC;strokeColor=#B8860B;fontSize=13;verticalAlign=top;spacingTop=10;" vertex="1" parent="1">
+          <mxGeometry x="420" y="700" width="970" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- ============ FEATURE GROUPS ============ -->
+        <mxCell id="fe_groups" value="&lt;b&gt;Feature groups built in build_gold.py&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color='#374151'&gt;• 17 raw numerics — age, annual_income, outstanding_debt, interest_rate, credit_utilization_ratio, credit_history_age_months …&lt;br&gt;• Ordinal / binary — credit_mix (Bad/Std/Good), spend_level, payment_value, pays_min_amount_only&amp;nbsp;&amp;nbsp;(null → −1 sentinel)&lt;br&gt;• Financial ratios — debt_to_annual_income, emi_to_monthly_salary, invested_to_monthly_salary&amp;nbsp;&amp;nbsp;(null → 0)&lt;br&gt;• Engineered signals — repayment_ability, loans_per_credit_item, loan_extent, inq_per_loan, balance_to_debt, has_credit_limit_change&lt;br&gt;• Age bins (one-hot ×5) — age_lt_25, age_25_39, age_40_54, age_55_plus, age_missing&lt;br&gt;• Loan-type counts (×9) — loan_type_auto, _mortgage, _student, _payday …&lt;br&gt;• Occupation (one-hot ×15, + occupation_missing)&lt;br&gt;• Clickstream — mean fe_1..fe_20 across all months ≤ snapshot (×20) + has_clickstream flag&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#B8860B;fontSize=12;align=left;spacingLeft=14;verticalAlign=top;spacingTop=12;dashed=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="890" width="880" height="300" as="geometry" />
+        </mxCell>
+        <mxCell id="fe_principles" value="&lt;b&gt;Leakage-safe by design&lt;/b&gt;&lt;br&gt;&lt;br&gt;&lt;font color='#374151'&gt;• &lt;b&gt;Point-in-time&lt;/b&gt;: a customer's features are only what was known &lt;i&gt;as of&lt;/i&gt; snapshot_date; clickstream aggregated only over months ≤ snapshot&lt;br&gt;&lt;br&gt;• &lt;b&gt;Fixed vocabularies&lt;/b&gt;: occupations, loan types &amp; ordinal maps are hard-coded — encodings never depend on the training set&lt;br&gt;&lt;br&gt;• &lt;b&gt;Explicit missingness&lt;/b&gt;: −1 sentinel for categoricals, 0-fill for ratios, and *_missing / has_clickstream flags instead of silent imputation&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EFF6FF;strokeColor=#2563EB;fontSize=12;align=left;spacingLeft=14;verticalAlign=top;spacingTop=12;" vertex="1" parent="1">
+          <mxGeometry x="980" y="890" width="410" height="300" as="geometry" />
+        </mxCell>
+
+        <!-- ============ TRAINING DATA ============ -->
+        <mxCell id="train_join" value="&lt;b&gt;Training data&lt;/b&gt;  =  feature_store  ⋈  label_store   on (Customer_ID, loan_start_date = snapshot_date)   →   one feature row per label, no leakage" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1B3A57;strokeColor=#0D1F30;fontColor=#FFFFFF;fontSize=14;fontStyle=0;" vertex="1" parent="1">
+          <mxGeometry x="70" y="1230" width="1320" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ============ EDGES ============ -->
+        <mxCell id="er1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#9CA3AF;" edge="1" parent="1" source="raw_lms" target="b_lms"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="er2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#9CA3AF;" edge="1" parent="1" source="raw_attr" target="b_attr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="er3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#9CA3AF;" edge="1" parent="1" source="raw_fin" target="b_fin"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="er4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#9CA3AF;" edge="1" parent="1" source="raw_click" target="b_click"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="eb1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#D98924;" edge="1" parent="1" source="b_lms" target="s_lms"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eb2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#D98924;" edge="1" parent="1" source="b_attr" target="s_attr"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eb3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#D98924;" edge="1" parent="1" source="b_fin" target="s_fin"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eb4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#D98924;" edge="1" parent="1" source="b_click" target="s_click"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="eg1" value="label" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4C9A50;fontColor=#2E7D32;fontSize=12;" edge="1" parent="1" source="s_lms" target="label_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eg2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4C9A50;" edge="1" parent="1" source="s_attr" target="feature_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eg3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4C9A50;" edge="1" parent="1" source="s_fin" target="feature_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+        <mxCell id="eg4" value="left-join" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#4C9A50;fontColor=#2E7D32;fontSize=12;" edge="1" parent="1" source="s_click" target="feature_store"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="efg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=none;dashed=1;strokeColor=#B8860B;" edge="1" parent="1" source="feature_store" target="fe_groups"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+        <mxCell id="et1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#1B3A57;strokeWidth=2;" edge="1" parent="1" source="label_store" target="train_join"><mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="220" y="1210" /></Array></mxGeometry></mxCell>
+        <mxCell id="et2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;strokeColor=#1B3A57;strokeWidth=2;" edge="1" parent="1" source="fe_principles" target="train_join"><mxGeometry relative="1" as="geometry" /></mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

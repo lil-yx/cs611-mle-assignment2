@@ -1,0 +1,17 @@
+# expected schema for silver.lms_loan_daily (validated before every write)
+columns:
+  loan_id: string
+  Customer_ID: string
+  loan_start_date: date
+  tenure: int
+  installment_num: int
+  loan_amt: float
+  due_amt: float
+  paid_amt: float
+  overdue_amt: float
+  balance: float
+  snapshot_date: date
+  mob: int
+  installments_missed: int
+  first_missed_date: date
+  dpd: int

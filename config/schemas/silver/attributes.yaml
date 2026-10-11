@@ -1,0 +1,6 @@
+# expected schema for silver.attributes (validated before every write)
+columns:
+  Customer_ID: string
+  Age: int
+  Occupation: string
+  snapshot_date: date

@@ -1,0 +1,8 @@
+# expected schema for gold.label_store (validated before every write)
+columns:
+  loan_id: string
+  Customer_ID: string
+  loan_start_date: date
+  label: int
+  label_def: string
+  snapshot_date: date

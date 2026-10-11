@@ -1,0 +1,24 @@
+# expected schema for silver.financials (validated before every write)
+columns:
+  Customer_ID: string
+  Annual_Income: float
+  Monthly_Inhand_Salary: float
+  Num_Bank_Accounts: int
+  Num_Credit_Card: int
+  Interest_Rate: int
+  Num_of_Loan: int
+  Delay_from_due_date: int
+  Num_of_Delayed_Payment: int
+  Changed_Credit_Limit: float
+  Num_Credit_Inquiries: int
+  Credit_Mix: string
+  Outstanding_Debt: float
+  Credit_Utilization_Ratio: float
+  Payment_of_Min_Amount: string
+  Total_EMI_per_month: float
+  Amount_invested_monthly: float
+  Payment_Behaviour: string
+  Monthly_Balance: float
+  snapshot_date: date
+  Credit_History_Age_Months: int
+  Loan_Type_List: array<string>

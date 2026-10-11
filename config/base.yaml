@@ -1,0 +1,46 @@
+# Shared pipeline settings: source files, datamart paths, backfill windows and label definition.
+
+paths:
+  data_dir: data/
+  datamart_dir: datamart/
+  schema_dir: config/schemas/
+
+# raw source systems -> bronze tables
+# each source has its own backfill window, matching the snapshot range available in the raw data
+sources:
+  lms_loan_daily:
+    csv_path: data/lms_loan_daily.csv
+    start_date: "2023-01-01"
+    end_date: "2025-11-01"
+  attributes:
+    csv_path: data/features_attributes.csv
+    start_date: "2023-01-01"
+    end_date: "2025-01-01"
+  financials:
+    csv_path: data/features_financials.csv
+    start_date: "2023-01-01"
+    end_date: "2025-01-01"
+  clickstream:
+    csv_path: data/feature_clickstream.csv
+    start_date: "2023-01-01"
+    end_date: "2024-12-01"
+
+# a loan is "bad" if it is >= dpd days past due at month-on-book mob
+label:
+  dpd: 30
+  mob: 6
+
+# the feature store is built for every month in which a loan application can occur
+feature_store:
+  start_date: "2023-01-01"
+  end_date: "2025-01-01"
+
+ml:
+  # loans before this date go into train; from this date onwards go into test
+  # gives ~18 months train / ~6 months test (temporal split, no random shuffle)
+  train_cutoff: "2024-07-01"
+  model_store_dir: "model_store/"
+  random_state: 42
+  optuna_trials: 50    # Optuna TPE trials per candidate model
+  cv_folds: 5          # StratifiedKFold folds for tuning objective and final CV report
+  optuna_storage: "model_store/optuna.db"   # SQLite DB; studies resume across runs

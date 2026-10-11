@@ -1,0 +1,12 @@
+# expected schema for gold.model_monitoring (validated before every write)
+columns:
+  snapshot_date: date
+  model_id: string
+  n_scored: int
+  n_labelled: int
+  bad_rate_actual: float
+  bad_rate_predicted: float
+  auc_roc: float
+  gini: float
+  psi_score: float
+  monitored_at: timestamp
