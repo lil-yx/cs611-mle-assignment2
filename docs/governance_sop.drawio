@@ -38,28 +38,28 @@
         </mxCell>
 
         <!-- retrain lane -->
-        <mxCell id="trig" value="&lt;b&gt;Trigger&lt;/b&gt;&lt;br&gt;roll train_cutoff forward&lt;br&gt;in config/base.yaml&lt;br&gt;&lt;font face='Courier New'&gt;force_retrain=true&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="trig" value="&lt;b&gt;Trigger&lt;/b&gt;&lt;br&gt;roll train_cutoff forward&lt;br&gt;in config/base.yaml, then run&lt;br&gt;&lt;font face='Courier New'&gt;model_training&lt;/font&gt; DAG" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="45" y="430" width="220" height="110" as="geometry" />
         </mxCell>
         <mxCell id="retrain" value="&lt;b&gt;Retrain challenger&lt;/b&gt;&lt;br&gt;LR / RF / XGBoost&lt;br&gt;Optuna TPE · 5-fold CV&lt;br&gt;new model_id in model_store/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3B3B98;strokeColor=#1A1A6E;fontColor=#FFFFFF;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="320" y="430" width="230" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="compare" value="&lt;b&gt;Challenger vs champion&lt;/b&gt;&lt;br&gt;same latest out-of-time&lt;br&gt;window · Gini, PSI,&lt;br&gt;SHAP top-10 sanity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B3B98;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="compare" value="&lt;b&gt;Challenger vs champion&lt;/b&gt;&lt;br&gt;same out-of-time window&lt;br&gt;Gini · PSI · SHAP top-10&lt;br&gt;→ challenger_report.json" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#3B3B98;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="605" y="430" width="230" height="110" as="geometry" />
         </mxCell>
-        <mxCell id="gate" value="&lt;b&gt;ΔGini ≥ +0.01&lt;br&gt;&amp;amp; stable?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="gate" value="&lt;b&gt;ΔGini ≥ +0.02&lt;br&gt;&amp;amp; stable?&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0F1B35;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="890" y="425" width="150" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="signoff" value="&lt;b&gt;Model-risk sign-off&lt;/b&gt;&lt;br&gt;metadata.json + SHAP&lt;br&gt;summary as evidence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#16A34A;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="signoff" value="&lt;b&gt;Model-risk sign-off&lt;/b&gt;&lt;br&gt;challenger report + SHAP&lt;br&gt;as evidence, named approver" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#16A34A;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="1110" y="395" width="230" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="swap" value="&lt;b&gt;Promote&lt;/b&gt;&lt;br&gt;atomic swap of&lt;br&gt;champion.json pointer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="swap" value="&lt;b&gt;Promote&lt;/b&gt;&lt;br&gt;model_deploy DAG: gate re-check,&lt;br&gt;atomic champion.json swap" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="1400" y="395" width="250" height="90" as="geometry" />
         </mxCell>
         <mxCell id="keep" value="&lt;b&gt;Keep champion&lt;/b&gt;&lt;br&gt;challenger archived with&lt;br&gt;its metrics for audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#64748B;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="1110" y="560" width="230" height="90" as="geometry" />
         </mxCell>
-        <mxCell id="rollback" value="&lt;b&gt;Rollback&lt;/b&gt; = repoint champion.json&lt;br&gt;to the previous model_id (seconds)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#DC2626;dashed=1;fontSize=14;" vertex="1" parent="1">
+        <mxCell id="rollback" value="&lt;b&gt;Rollback&lt;/b&gt; = model_deploy, rollback=true&lt;br&gt;repoints champion.json (seconds)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#DC2626;dashed=1;fontSize=14;" vertex="1" parent="1">
           <mxGeometry x="1400" y="560" width="250" height="90" as="geometry" />
         </mxCell>
 

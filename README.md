@@ -1,9 +1,53 @@
-# CS611 Assignment 1: Loan default feature & label store
+# CS611 Assignment 2: Loan-default ML pipeline
 
-Medallion-architecture (bronze → silver → gold) data pipelines in PySpark that build an ML-ready
-**feature store** and **label store** for predicting loan default at the point of application.
+End-to-end ML pipeline, orchestrated by Airflow, that predicts loan default at the point of
+application: datamart → train → monthly batch inference → monitoring, with human-approved promotion.
 
-## Run
+## Run the pipeline (Airflow)
+
+```bash
+docker-compose build
+docker-compose up          # Airflow at http://localhost:8080 (admin / admin)
+```
+
+Unpause **`ml_pipeline`**. It backfills 13 monthly runs (Jan 2024 – Jan 2025) and on its first run
+creates everything from `data/`: datamart, models, predictions and monitoring.
+
+| DAG | Trigger | Tasks |
+|---|---|---|
+| `ml_pipeline` | `@monthly`, catchup | `build_datamart` (skips when gold is complete) → `train_model` → `run_inference` → `run_monitor` |
+| `model_training` | manual only | `build_datamart` → `train_challenger` (challenger + report, never promotes) |
+| `model_deploy` | manual only | `check_request` → `check_gate` → `promote` → `check_deployment` |
+
+Outputs: `model_store/` (model bank), `datamart/gold/predictions`, `datamart/gold/model_monitoring`,
+`reports/monitoring/*.png`.
+
+## Model governance
+
+Selection within a training run is automatic; **changing the production model is not**
+([docs/governance_sop.png](docs/governance_sop.png)).
+
+| Situation | What happens |
+|---|---|
+| No `champion.json` (first run) | Best of LR / RF / XGBoost is promoted automatically (`promoted_by: bootstrap`) |
+| Retrain (`model_training` DAG) | Best candidate is saved as a **challenger** with `challenger_report.json`, scored against the champion on the same out-of-time window. `champion.json` is unchanged |
+| Promote | A person reviews the report, then triggers `model_deploy` with `model_id` and `approved_by`. The gate is re-checked: ΔGini ≥ +0.02, challenger score PSI < 0.10, ≥ 5 of the champion's top-10 SHAP drivers kept |
+| Rollback | `model_deploy` with `rollback=true` and a former champion's `model_id` |
+
+Every promotion and rollback is appended to `model_store/champion_history.jsonl` (who, why, previous
+model). Thresholds live in `config/base.yaml` under `ml.promotion`.
+
+```bash
+# inside the scheduler container
+airflow dags trigger model_training
+airflow dags trigger model_deploy --conf '{"model_id": "<id>", "approved_by": "<name>", "reason": "..."}'
+```
+
+## Data pipeline (from Assignment 1)
+
+Medallion-architecture (bronze → silver → gold) data pipelines in PySpark build the ML-ready
+**feature store** and **label store**. Airflow's `build_datamart` task runs them; they can also be
+run directly:
 
 ```bash
 docker-compose build
@@ -31,8 +75,11 @@ The same commands are available as `make build | up | pipeline | test | eda | cl
 │   ├── common/                  # config, Spark session, datamart IO, logging, dates
 │   ├── ingestion/               # raw -> bronze
 │   ├── transformation/          # bronze -> silver: cleaning rules, validation, build_silver
-│   └── features/                # silver -> gold: feature definitions, build_gold, feature_store join API
-├── pipelines/                   # single-snapshot jobs per layer, for a scheduler (e.g. Airflow)
+│   ├── features/                # silver -> gold: feature definitions, build_gold, feature_store join API
+│   └── ml/                      # model store, champion history, promotion gate, PSI
+├── dags/                        # Airflow DAGs: ml_pipeline, model_training, model_deploy
+├── model_store/                 # model bank (only optuna.db is versioned)
+├── pipelines/                   # data jobs per layer + train / inference / monitor pipelines
 ├── notebooks/01_eda.ipynb       # exploration behind the cleaning rules (no production logic)
 └── tests/unit/                  # tests for cleaning rules and validation
 ```

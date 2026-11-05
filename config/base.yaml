@@ -44,3 +44,8 @@ ml:
   optuna_trials: 50    # Optuna TPE trials per candidate model
   cv_folds: 5          # StratifiedKFold folds for tuning objective and final CV report
   optuna_storage: "model_store/optuna.db"   # SQLite DB; studies resume across runs
+  # challenger-vs-champion gate (utils/ml/promotion.py); promotion itself needs a person
+  promotion:
+    min_gini_uplift: 0.02         # ~1 CV std of Gini, so a "win" is not just noise
+    max_score_psi: 0.10           # challenger scores stable across the out-of-time window
+    min_shap_top10_overlap: 5     # top drivers broadly agree with the champion's

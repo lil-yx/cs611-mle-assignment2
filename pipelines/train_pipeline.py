@@ -6,7 +6,13 @@ For each of the three candidate model types:
   2. The tuned pipeline is then cross-validated on the full training set to produce a
      stable AUC estimate (CV mean ± std).
   3. It is fitted on the full training set and evaluated on the temporal holdout.
-After all candidates are compared, the champion's SHAP values are computed and saved.
+After all candidates are compared, the best one's SHAP values are computed and saved.
+
+Promotion (see utils/ml/promotion.py):
+  - no champion yet -> the best candidate is promoted automatically ("bootstrap")
+  - champion exists -> the best candidate is a challenger: it is compared with the
+    champion on the same out-of-time window and a challenger_report.json is written.
+    champion.json is NOT changed; a person promotes through the model_deploy DAG.
 
 Usage (from project root, inside Docker):
     python -m pipelines.train_pipeline
@@ -34,7 +40,11 @@ from utils.common.config import CONFIG
 from utils.common.log import get_logger
 from utils.common.spark_session import get_spark
 from utils.features.feature_store import get_training_data
-from utils.ml.model_store import save_champion, save_model, save_shap_summary
+from utils.ml.model_store import (
+    champion_exists, load_champion_id, load_model, load_shap_top,
+    save_challenger_report, save_champion, save_model, save_shap_summary,
+)
+from utils.ml.promotion import build_report
 
 logger = get_logger("train_pipeline")
 
@@ -326,25 +336,52 @@ def main():
         )
         scores[name] = (model_id, metrics["auc_roc"], pipeline)
 
+    # 4. the run's best candidate (selection within a run is always automatic)
     best_name, (best_id, best_auc, best_pipeline) = max(
         scores.items(), key=lambda kv: kv[1][1],
     )
-    save_champion(best_id)
-    logger.info(
-        "champion registered: %s  model_id=%s  AUC=%.4f",
-        best_name, best_id, best_auc,
-    )
+    logger.info("best candidate this run: %s  model_id=%s  AUC=%.4f", best_name, best_id, best_auc)
 
-    # 4. SHAP explainability for champion
-    logger.info("computing SHAP values for champion (%s) …", best_name)
+    # 5. SHAP explainability for the best candidate
+    logger.info("computing SHAP values for %s …", best_name)
     shap_importance = _compute_shap(best_pipeline, X_train, feature_cols, best_name)
     save_shap_summary(best_id, shap_importance)
     logger.info("SHAP summary saved → model_store/%s/shap_summary.json", best_id)
 
     logger.info("\n%-25s  %s", "model", "AUC-ROC")
     for name, (mid, auc, _) in sorted(scores.items(), key=lambda kv: -kv[1][1]):
-        flag = " ← champion" if mid == best_id else ""
+        flag = " <- best" if mid == best_id else ""
         logger.info("%-25s  %.4f%s", name, auc, flag)
+
+    # 6. promotion policy
+    if not champion_exists():
+        # cold start: nothing to compare against, so the best candidate goes live
+        save_champion(best_id, promoted_by="bootstrap",
+                      reason="first training run: no champion in the model store")
+        logger.info("champion registered (bootstrap): %s", best_id)
+        return
+
+    # retrain: register as challenger only; a person promotes via the model_deploy DAG
+    champion_id = load_champion_id()
+    champion_model, champion_cols, _ = load_model(champion_id)
+    report = build_report(
+        champion_id, champion_model, champion_cols, load_shap_top(champion_id),
+        best_id, best_pipeline, feature_cols, load_shap_top(best_id),
+        oot_df=test, window=f"loan_start_date >= {TRAIN_CUTOFF}",
+    )
+    save_challenger_report(best_id, report)
+    logger.info("challenger %s vs champion %s on %s (%d loans)",
+                best_id, champion_id, report["window"], report["n_loans"])
+    logger.info("  Gini  champion %s  challenger %.4f", report["champion_gini"], report["challenger_gini"])
+    for c in report["checks"]:
+        status = {True: "PASS", False: "FAIL", None: "n/a"}[c["passed"]]
+        logger.info("  %-16s %-6s value=%s  rule %s", c["name"], status, c["value"], c["rule"])
+    if report["recommendation"] == "PROMOTE":
+        logger.info("recommendation: PROMOTE — champion.json NOT changed. After review, trigger "
+                    "model_deploy with model_id=%s and approved_by=<name>", best_id)
+    else:
+        logger.info("recommendation: KEEP_CHAMPION — %s stays in production; challenger %s is "
+                    "archived with its report for audit", champion_id, best_id)
 
 
 if __name__ == "__main__":

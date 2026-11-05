@@ -32,36 +32,12 @@ from utils.common.config import CONFIG
 from utils.common.io import parquet_exists, read_all_partitions, read_parquet
 from utils.common.log import get_logger
 from utils.common.spark_session import get_spark
+from utils.ml.stability import N_BINS as _N_BINS, bin_scores as _bin_scores, psi as _psi
 from utils.transformation.validation import validate_and_write
 
 logger = get_logger("monitor_pipeline")
 
-_N_BINS = 10
 _REPORT_DIR = "reports/monitoring"
-
-
-# ---------------------------------------------------------------------------
-# PSI helpers
-# ---------------------------------------------------------------------------
-
-def _bin_scores(scores, n_bins=_N_BINS):
-    """Return a count-per-bin array over [0, 1) with n_bins equal-width bins."""
-    bins = np.linspace(0.0, 1.0, n_bins + 1)
-    counts, _ = np.histogram(scores, bins=bins)
-    return counts
-
-
-def _psi(reference_scores, current_scores, n_bins=_N_BINS):
-    """Population Stability Index between two score arrays."""
-    ref_counts = _bin_scores(reference_scores, n_bins).astype(float)
-    cur_counts = _bin_scores(current_scores, n_bins).astype(float)
-
-    # avoid zero divisions — replace zeros with a small epsilon
-    eps = 0.0001
-    ref_pct = np.maximum(ref_counts / ref_counts.sum(), eps)
-    cur_pct = np.maximum(cur_counts / cur_counts.sum(), eps)
-
-    return float(np.sum((cur_pct - ref_pct) * np.log(cur_pct / ref_pct)))
 
 
 # ---------------------------------------------------------------------------
