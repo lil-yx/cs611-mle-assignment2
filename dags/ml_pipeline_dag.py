@@ -3,10 +3,11 @@
 Runs monthly (1st of each month) and supports full backfill via catchup=True.
 
 Task graph:
-    build_datamart ──► train_model ──► run_inference ──► run_monitor
+    build_bronze ──► build_silver ──► build_gold ──► train_model ──► run_inference ──► run_monitor
 
-- build_datamart : builds bronze -> silver -> gold from data/ when any gold
-                   label_store / feature_store partition is missing; otherwise skips.
+- build_<layer>  : builds that layer's missing partitions from data/ (all history on a
+                   fresh checkout, nothing once complete), then gates it: a missing
+                   partition fails the task and stops everything downstream.
 - train_model    : no champion yet -> trains LR / RF / XGBoost and promotes the best
                    ("bootstrap"). Champion exists -> skipped. Retrains go through the
                    model_training DAG and only produce a CHALLENGER; promotion is a human
@@ -36,10 +37,12 @@ os.environ.setdefault("PYTHONPATH", _APP_DIR)
 
 # ── Task callables ────────────────────────────────────────────────────────────
 
-def _build_datamart(**context):
-    os.chdir(_APP_DIR)
-    from main import build_if_missing
-    build_if_missing()
+def _build_layer(layer):
+    def build(**context):
+        os.chdir(_APP_DIR)
+        from main import build_layer
+        build_layer(layer)
+    return build
 
 
 def _train(**context):
@@ -90,9 +93,9 @@ with DAG(
     },
 ) as dag:
 
-    build_datamart = PythonOperator(
-        task_id="build_datamart",
-        python_callable=_build_datamart,
+    build_bronze, build_silver, build_gold = (
+        PythonOperator(task_id=f"build_{layer}", python_callable=_build_layer(layer))
+        for layer in ("bronze", "silver", "gold")
     )
 
     train_model = PythonOperator(
@@ -110,4 +113,4 @@ with DAG(
         python_callable=_monitor,
     )
 
-    build_datamart >> train_model >> run_inference >> run_monitor
+    build_bronze >> build_silver >> build_gold >> train_model >> run_inference >> run_monitor

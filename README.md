@@ -15,8 +15,8 @@ creates everything from `data/`: datamart, models, predictions and monitoring.
 
 | DAG | Trigger | Tasks |
 |---|---|---|
-| `ml_pipeline` | `@monthly`, catchup | `build_datamart` (skips when gold is complete) → `train_model` → `run_inference` → `run_monitor` |
-| `model_training` | manual only | `build_datamart` → `train_challenger` (challenger + report, never promotes) |
+| `ml_pipeline` | `@monthly`, catchup | `build_bronze` → `build_silver` → `build_gold` (each builds only missing months, then gates) → `train_model` → `run_inference` → `run_monitor` |
+| `model_training` | manual only | `check_gold` (read-only: fails if gold is incomplete) → `train_challenger` (challenger + report, never promotes) |
 | `model_deploy` | manual only | `check_request` → `check_gate` → `promote` → `check_deployment` |
 
 Outputs: `model_store/` (model bank), `datamart/gold/predictions`, `datamart/gold/model_monitoring`,
@@ -43,11 +43,28 @@ airflow dags trigger model_training
 airflow dags trigger model_deploy --conf '{"model_id": "<id>", "approved_by": "<name>", "reason": "..."}'
 ```
 
+## Monitoring
+
+Each monthly `run_monitor` writes one row to `gold.model_monitoring` and PSI per model input to
+`gold.feature_drift`, then redraws the charts in `reports/monitoring/`.
+
+| Check | Measure | AMBER | RED |
+|---|---|---|---|
+| Score stability | PSI of scores vs earlier out-of-time months | ≥ 0.10 | ≥ 0.25 |
+| Performance | Gini, mean of the last 3 labelled months | < 0.57 | < 0.50 |
+| Feature drift | PSI of each model input vs the training window | any ≥ 0.25 | — |
+| Escalation | second AMBER in a row | — | RED |
+
+`refresh_due` is set once the model's training data is 6 months old. Status never retrains anything:
+RED is logged as a warning and a person runs `model_training`. Thresholds: `ml.monitoring` in
+`config/base.yaml`. The EDA behind the model design (clickstream coverage, label stability, DPD cut-off)
+is in `notebooks/01_eda.ipynb`, sections 4–7.
+
 ## Data pipeline (from Assignment 1)
 
 Medallion-architecture (bronze → silver → gold) data pipelines in PySpark build the ML-ready
-**feature store** and **label store**. Airflow's `build_datamart` task runs them; they can also be
-run directly:
+**feature store** and **label store**. Airflow runs one task per layer (`build_bronze`, `build_silver`,
+`build_gold`), each building only missing months; they can also be run directly:
 
 ```bash
 docker-compose build

@@ -180,7 +180,7 @@ def test_tune_returns_expected_param_key(tiny_data, name, expected_param):
 def test_tune_gbm_params_within_search_space(tiny_data):
     X, y, _ = tiny_data
     params, _ = _tune("gradient_boosting", X, y)
-    assert 100 <= params["n_estimators"] <= 400
+    assert 1 <= params["n_estimators"] <= 1000   # chosen by early stopping
     assert 2 <= params["max_depth"] <= 6
     assert 0.01 <= params["learning_rate"] <= 0.2
     assert 0.6 <= params["subsample"] <= 1.0
@@ -250,3 +250,21 @@ def test_save_shap_summary_ranked_descending(tmp_path, monkeypatch):
     data = json.loads(out.read_text())
     vals = [r["mean_abs_shap"] for r in data["ranked_features"]]
     assert vals == sorted(vals, reverse=True)
+
+
+# ---------------------------------------------------------------------------
+# select_features
+# ---------------------------------------------------------------------------
+
+def test_select_features_drops_keys_and_configured_exclusions(monkeypatch):
+    import pipelines.train_pipeline as tp
+    monkeypatch.setattr(tp, "EXCLUDED_FEATURES", ["fe_*", "has_clickstream"])
+    cols = ["Customer_ID", "loan_start_date", "label", "outstanding_debt",
+            "fe_1", "fe_20", "has_clickstream", "interest_rate", "feature_x"]
+    assert tp.select_features(cols) == ["outstanding_debt", "interest_rate", "feature_x"]
+
+
+def test_select_features_no_exclusions_keeps_all_inputs(monkeypatch):
+    import pipelines.train_pipeline as tp
+    monkeypatch.setattr(tp, "EXCLUDED_FEATURES", [])
+    assert tp.select_features(["label", "fe_1", "a"]) == ["fe_1", "a"]

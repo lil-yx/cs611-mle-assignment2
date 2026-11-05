@@ -41,9 +41,27 @@ ml:
   train_cutoff: "2024-07-01"
   model_store_dir: "model_store/"
   random_state: 42
-  optuna_trials: 50    # Optuna TPE trials per candidate model
-  cv_folds: 5          # StratifiedKFold folds for tuning objective and final CV report
+  # gold columns NOT used as model inputs (still built in the feature store); '*' = prefix.
+  # Clickstream exists only for loans before Jul 2024 (the training window) and for none after, so
+  # it lifts in-period CV (~0.81 -> ~0.90) but is blank for every loan scored out of time (OOT 0.810 without vs 0.804 with)
+  exclude_features: ["fe_*", "has_clickstream"]
+  optuna_trials: 25    # complete Optuna TPE trials per candidate (best found by ~#11 at 50)
+  tuning_cv_folds: 3   # folds inside the Optuna objective (only needs to rank candidates)
+  cv_folds: 5          # folds for the final CV report of the tuned model
+  # threads per model fit (XGBoost / RandomForest). Benchmark, one 5-fold XGBoost trial in
+  # Docker/WSL: 1 -> 35s, 4 -> 13s, 8 -> 12s, all 16 -> 433s (oversubscription). 4 is safe on small laptops
+  n_jobs: 4
+  max_trees: 1000      # XGBoost ceiling; early stopping chooses the actual tree count
+  early_stopping_rounds: 30
   optuna_storage: "model_store/optuna.db"   # SQLite DB; studies resume across runs
+  # monthly traffic light (utils/ml/drift.py, docs/governance_sop.png); never retrains by itself
+  monitoring:
+    psi_amber: 0.10
+    psi_red: 0.25
+    gini_amber: 0.57              # applied to the 3-month mean Gini
+    gini_red: 0.50
+    feature_psi_major: 0.25       # any model input above this -> AMBER
+    refresh_months: 6             # months after train_cutoff -> refresh_due
   # challenger-vs-champion gate (utils/ml/promotion.py); promotion itself needs a person
   promotion:
     min_gini_uplift: 0.02         # ~1 CV std of Gini, so a "win" is not just noise

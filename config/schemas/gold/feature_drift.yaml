@@ -1,0 +1,8 @@
+# expected schema for gold.feature_drift (validated before every write)
+# one row per model input per month: PSI of the feature vs the training window
+columns:
+  snapshot_date: date
+  model_id: string
+  feature: string
+  psi: float
+  monitored_at: timestamp

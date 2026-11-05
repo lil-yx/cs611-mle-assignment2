@@ -1,8 +1,10 @@
 """ML training pipeline with Optuna tuning, cross-validated retraining and SHAP explainability.
 
 For each of the three candidate model types:
-  1. Optuna (TPE, N_TRIALS) finds best hyperparameters using 5-fold StratifiedKFold CV on the
-     training set.
+  1. Optuna (TPE, N_TRIALS complete trials) finds hyperparameters with TUNING_CV_FOLDS-fold CV,
+     a median pruner that drops weak trials after a fold, and early stopping for XGBoost
+     (tree count chosen on an inner split of each training fold). Studies are named by a
+     fingerprint of features + tuning settings, so stale studies are never reused.
   2. The tuned pipeline is then cross-validated on the full training set to produce a
      stable AUC estimate (CV mean ± std).
   3. It is fitted on the full training set and evaluated on the temporal holdout.
@@ -18,6 +20,8 @@ Usage (from project root, inside Docker):
     python -m pipelines.train_pipeline
 """
 
+import hashlib
+import json
 import os
 from datetime import datetime, date, UTC
 
@@ -50,8 +54,13 @@ logger = get_logger("train_pipeline")
 
 TRAIN_CUTOFF = date.fromisoformat(CONFIG["ml"]["train_cutoff"])
 RANDOM_STATE = CONFIG["ml"]["random_state"]
-N_TRIALS        = CONFIG["ml"].get("optuna_trials", 50)
-CV_FOLDS        = CONFIG["ml"].get("cv_folds", 5)
+N_TRIALS        = CONFIG["ml"].get("optuna_trials", 25)
+CV_FOLDS        = CONFIG["ml"].get("cv_folds", 5)              # final CV report
+TUNING_CV_FOLDS = CONFIG["ml"].get("tuning_cv_folds", 3)       # Optuna objective (ranking only)
+N_JOBS          = CONFIG["ml"].get("n_jobs", 4)                # threads per model fit
+MAX_TREES       = CONFIG["ml"].get("max_trees", 1000)          # XGBoost ceiling; early stopping picks
+EARLY_STOPPING  = CONFIG["ml"].get("early_stopping_rounds", 30)
+SEARCH_SPACE_VERSION = 2   # bump when a search space below changes
 OPTUNA_STORAGE  = "sqlite:///" + CONFIG["ml"].get("optuna_storage", "model_store/optuna.db")
 
 # columns that are keys / metadata, not model inputs
@@ -60,6 +69,21 @@ _NON_FEATURE = {
     "label", "label_def", "snapshot_date", "feature_snapshot_date",
 }
 
+# Gold columns kept in the feature store but not used as model inputs (config ml.exclude_features).
+# Clickstream fe_1..fe_20 exist for 100% of loans before Jul 2024 and 0% after (see notebooks/01_eda),
+# so they lift in-period CV AUC (~0.81 -> ~0.90) but are blank for every loan scored out of time
+# (OOT AUC 0.810 without vs 0.804 with). has_clickstream is then a pure time-period flag.
+EXCLUDED_FEATURES = CONFIG["ml"].get("exclude_features", [])
+
+
+def select_features(columns):
+    """Model inputs: every gold column except keys/labels and configured exclusions.
+    An exclusion ending in '*' is a prefix (e.g. 'fe_*')."""
+    def excluded(c):
+        return any(c.startswith(e[:-1]) if e.endswith("*") else c == e for e in EXCLUDED_FEATURES)
+    return [c for c in columns if c not in _NON_FEATURE and not excluded(c)]
+
+
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 
@@ -67,55 +91,84 @@ optuna.logging.set_verbosity(optuna.logging.WARNING)
 # Optuna objectives
 # ---------------------------------------------------------------------------
 
+def _suggest_estimator(model_name, trial):
+    """Unfitted classifier for one trial (no imputer: the objective imputes per fold)."""
+    if model_name == "logistic_regression":
+        return LogisticRegression(
+            C=trial.suggest_float("C", 1e-3, 10.0, log=True),
+            max_iter=1000, random_state=RANDOM_STATE, class_weight="balanced",
+        )
+    if model_name == "random_forest":
+        return RandomForestClassifier(
+            n_estimators=trial.suggest_int("n_estimators", 100, 400, step=50),
+            max_depth=trial.suggest_int("max_depth", 4, 12),
+            min_samples_leaf=trial.suggest_int("min_samples_leaf", 1, 8),
+            random_state=RANDOM_STATE, class_weight="balanced", n_jobs=N_JOBS,
+        )
+    # gradient_boosting: no n_estimators in the search — early stopping picks the tree count
+    return XGBClassifier(
+        objective="binary:logistic",
+        n_estimators=MAX_TREES,
+        early_stopping_rounds=EARLY_STOPPING,
+        max_depth=trial.suggest_int("max_depth", 2, 6),
+        learning_rate=trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
+        subsample=trial.suggest_float("subsample", 0.6, 1.0),
+        colsample_bytree=trial.suggest_float("colsample_bytree", 0.6, 1.0),
+        reg_lambda=trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
+        tree_method="hist", random_state=RANDOM_STATE,
+        eval_metric="logloss", verbosity=0, n_jobs=N_JOBS,
+    )
+
+
 def _make_objective(model_name, X_train, y_train):
     # XGBoost uses scale_pos_weight for imbalance: ratio of negatives to positives
     spw = float((y_train == 0).sum()) / float((y_train == 1).sum())
+    cv = StratifiedKFold(n_splits=TUNING_CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
 
     def objective(trial):
-        if model_name == "logistic_regression":
-            pipe = Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
-                ("scaler",  StandardScaler()),
-                ("clf",     LogisticRegression(
-                    C=trial.suggest_float("C", 1e-3, 10.0, log=True),
-                    max_iter=1000, random_state=RANDOM_STATE, class_weight="balanced",
-                )),
-            ])
-        elif model_name == "random_forest":
-            pipe = Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
-                ("clf",     RandomForestClassifier(
-                    n_estimators=trial.suggest_int("n_estimators", 100, 400, step=50),
-                    max_depth=trial.suggest_int("max_depth", 4, 12),
-                    min_samples_leaf=trial.suggest_int("min_samples_leaf", 1, 8),
-                    random_state=RANDOM_STATE, class_weight="balanced", n_jobs=-1,
-                )),
-            ])
-        else:  # gradient_boosting
-            pipe = Pipeline([
-                ("imputer", SimpleImputer(strategy="median")),
-                ("clf",     XGBClassifier(
-                    objective="binary:logistic",
-                    n_estimators=trial.suggest_int("n_estimators", 100, 400, step=50),
-                    max_depth=trial.suggest_int("max_depth", 2, 6),
-                    learning_rate=trial.suggest_float("learning_rate", 0.01, 0.2, log=True),
-                    subsample=trial.suggest_float("subsample", 0.6, 1.0),
-                    colsample_bytree=trial.suggest_float("colsample_bytree", 0.6, 1.0),
-                    reg_lambda=trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
-                    scale_pos_weight=spw,
-                    tree_method="hist", random_state=RANDOM_STATE,
-                    eval_metric="logloss", verbosity=0,
-                )),
-            ])
-        return _cv_auc(pipe, X_train, y_train)[0]
+        clf = _suggest_estimator(model_name, trial)
+        aucs, trees = [], []
+        for step, (tr, val) in enumerate(cv.split(X_train, y_train)):
+            imputer = SimpleImputer(strategy="median").fit(X_train[tr])
+            X_tr, X_val = imputer.transform(X_train[tr]), imputer.transform(X_train[val])
+            model = clone(clf)
+            if model_name == "logistic_regression":
+                model = Pipeline([("scaler", StandardScaler()), ("clf", model)])
+                model.fit(X_tr, y_train[tr])
+            elif model_name == "gradient_boosting":
+                # early stopping on an inner split of the TRAINING fold, so the
+                # validation fold that is scored never chooses the tree count
+                inner_tr, inner_es = next(StratifiedKFold(
+                    n_splits=5, shuffle=True, random_state=RANDOM_STATE,
+                ).split(X_tr, y_train[tr]))
+                model.set_params(scale_pos_weight=spw)
+                model.fit(X_tr[inner_tr], y_train[tr][inner_tr],
+                          eval_set=[(X_tr[inner_es], y_train[tr][inner_es])], verbose=False)
+                trees.append(model.best_iteration + 1)
+            else:
+                model.fit(X_tr, y_train[tr])
+            aucs.append(roc_auc_score(y_train[val], model.predict_proba(X_val)[:, 1]))
+
+            # pruning: stop a trial early when its running mean is clearly below others
+            trial.report(float(np.mean(aucs)), step)
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+        if trees:
+            trial.set_user_attr("n_estimators", int(round(np.mean(trees))))
+        return float(np.mean(aucs))
 
     return objective
 
 
 def _log_trial(model_name):
-    """Build an Optuna callback that logs each completed trial's progress."""
+    """Build an Optuna callback that logs each finished trial's progress."""
     def callback(study, trial):
         done = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
+        if trial.state == optuna.trial.TrialState.PRUNED:
+            logger.info("    %s trial %d pruned after %d folds", model_name, trial.number,
+                        len(trial.intermediate_values))
+            return
         if trial.state != optuna.trial.TrialState.COMPLETE:
             logger.warning("    %s trial %d %s", model_name, trial.number, trial.state.name)
             return
@@ -128,28 +181,51 @@ def _log_trial(model_name):
     return callback
 
 
-def _tune(model_name, X_train, y_train):
+def _study_name(model_name, feature_cols):
+    """Study name tied to the data and tuning setup, so a study tuned on different
+    features or settings is never silently reused."""
+    fingerprint = hashlib.sha1(json.dumps({
+        "features": list(feature_cols), "folds": TUNING_CV_FOLDS,
+        "max_trees": MAX_TREES, "early_stopping": EARLY_STOPPING,
+        "train_cutoff": str(TRAIN_CUTOFF), "search_space": SEARCH_SPACE_VERSION,
+    }, sort_keys=True).encode()).hexdigest()[:10]
+    return f"{model_name}__{fingerprint}"
+
+
+def _tune(model_name, X_train, y_train, feature_cols=None):
     os.makedirs(CONFIG["ml"].get("model_store_dir", "model_store/"), exist_ok=True)
+    if feature_cols is None:
+        feature_cols = [f"f{i}" for i in range(X_train.shape[1])]
     study = optuna.create_study(
-        study_name=model_name,
+        study_name=_study_name(model_name, feature_cols),
         direction="maximize",
         sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE),
+        # wait for 5 complete trials, and always score at least one fold, before pruning
+        pruner=optuna.pruners.MedianPruner(n_startup_trials=5, n_warmup_steps=1),
         storage=OPTUNA_STORAGE,
         load_if_exists=True,
     )
     done = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
     remaining = max(0, N_TRIALS - done)
     if remaining == 0:
-        logger.info("  %s: all %d trials already done, loading best params", model_name, N_TRIALS)
+        logger.info("  %s: all %d trials already done (study %s), loading best params",
+                    model_name, N_TRIALS, study.study_name)
     else:
-        logger.info("  tuning %s (%d/%d trials remaining) …", model_name, remaining, N_TRIALS)
-        study.optimize(
-            _make_objective(model_name, X_train, y_train),
-            n_trials=remaining, show_progress_bar=False,
-            callbacks=[_log_trial(model_name)],
-        )
-    logger.info("  best params: %s  (cv_auc=%.4f)", study.best_params, study.best_value)
-    return study.best_params, study.best_value
+        logger.info("  tuning %s: %d/%d trials remaining, %d-fold CV, n_jobs=%d (study %s) …",
+                    model_name, remaining, N_TRIALS, TUNING_CV_FOLDS, N_JOBS, study.study_name)
+        # count only COMPLETE trials toward the budget; pruned ones are cheap extras,
+        # capped so a run can never loop indefinitely
+        def _complete():
+            return len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
+        while _complete() < N_TRIALS and len(study.trials) < 3 * N_TRIALS:
+            study.optimize(
+                _make_objective(model_name, X_train, y_train),
+                n_trials=1, show_progress_bar=False,
+                callbacks=[_log_trial(model_name)],
+            )
+    best_params = {**study.best_params, **study.best_trial.user_attrs}
+    logger.info("  best params: %s  (cv_auc=%.4f)", best_params, study.best_value)
+    return best_params, study.best_value
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +249,7 @@ def _build_tuned_pipeline(model_name, params):
                 n_estimators=params["n_estimators"],
                 max_depth=params["max_depth"],
                 min_samples_leaf=params["min_samples_leaf"],
-                random_state=RANDOM_STATE, class_weight="balanced", n_jobs=-1,
+                random_state=RANDOM_STATE, class_weight="balanced", n_jobs=N_JOBS,
             )),
         ])
     else:  # gradient_boosting
@@ -189,7 +265,7 @@ def _build_tuned_pipeline(model_name, params):
                 reg_lambda=params["reg_lambda"],
                 scale_pos_weight=params["scale_pos_weight"],
                 tree_method="hist", random_state=RANDOM_STATE,
-                eval_metric="logloss", verbosity=0,
+                eval_metric="logloss", verbosity=0, n_jobs=N_JOBS,
             )),
         ])
 
@@ -272,7 +348,8 @@ def main():
     spark.stop()
     logger.info("full dataset: %d rows, %d columns", *pdf.shape)
 
-    feature_cols = [c for c in pdf.columns if c not in _NON_FEATURE]
+    feature_cols = select_features(pdf.columns)
+    logger.info("excluded from model inputs by config: %s", EXCLUDED_FEATURES)
     logger.info("feature columns: %d", len(feature_cols))
 
     # temporal split — never shuffle; future data must not appear in training
@@ -300,7 +377,7 @@ def main():
         logger.info("=== %s ===", name)
 
         # 1. Optuna hyperparameter search
-        best_params, _ = _tune(name, X_train, y_train)
+        best_params, _ = _tune(name, X_train, y_train, feature_cols)
         if name == "gradient_boosting":
             best_params["scale_pos_weight"] = float((y_train == 0).sum()) / float((y_train == 1).sum())
 

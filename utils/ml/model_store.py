@@ -53,6 +53,15 @@ def save_model(model_id, model, metadata, feature_cols):
         json.dump(feature_cols, f, indent=2)
 
 
+def load_metadata(model_id):
+    """metadata.json and feature_cols.json of a model, without unpickling it."""
+    with open(os.path.join(_model_dir(model_id), "metadata.json")) as f:
+        metadata = json.load(f)
+    with open(os.path.join(_model_dir(model_id), "feature_cols.json")) as f:
+        feature_cols = json.load(f)
+    return metadata, feature_cols
+
+
 def model_exists(model_id):
     return os.path.exists(os.path.join(_model_dir(model_id), "model.pkl"))
 

@@ -9,4 +9,12 @@ columns:
   auc_roc: float
   gini: float
   psi_score: float
+  gini_3m: float
+  n_features_drifted: int
+  top_drift_feature: string
+  top_drift_psi: float
+  model_age_months: int
+  refresh_due: int
+  status: string
+  status_reason: string
   monitored_at: timestamp
