@@ -53,8 +53,11 @@ Each monthly `run_monitor` writes one row to `gold.model_monitoring` and PSI per
 | Score stability | PSI of scores vs earlier out-of-time months | ≥ 0.10 | ≥ 0.25 |
 | Performance | Gini, mean of the last 3 labelled months | < 0.57 | < 0.50 |
 | Feature drift | PSI of each model input vs the training window | any ≥ 0.25 | — |
+| Calibration | flag gap: predicted bad rate (score ≥ 0.5) minus actual, mean of the last 3 labelled months | > +0.10 or < −0.05 | — |
 | Escalation | second AMBER in a row | — | RED |
 
+The flag-gap band is asymmetric on purpose: missing bad loans costs more than flagging a few good ones,
+so under-flagging alerts sooner. The champion over-flags by about 6 points, inside the band.
 `refresh_due` is set once the model's training data is 6 months old. Status never retrains anything:
 RED is logged as a warning and a person runs `model_training`. Thresholds: `ml.monitoring` in
 `config/base.yaml`. The EDA behind the model design (clickstream coverage, label stability, DPD cut-off)

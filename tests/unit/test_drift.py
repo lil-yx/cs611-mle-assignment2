@@ -6,11 +6,12 @@ import numpy as np
 import pandas as pd
 
 from utils.ml.drift import (
-    classify, decision_gini, feature_drift, feature_psi, model_age_months,
+    classify, decision_flag_gap, decision_gini, feature_drift, feature_psi, model_age_months,
 )
 
 LIM = {"psi_amber": 0.10, "psi_red": 0.25, "gini_amber": 0.57, "gini_red": 0.50,
-       "feature_psi_major": 0.25, "refresh_months": 6}
+       "feature_psi_major": 0.25, "refresh_months": 6,
+       "flag_gap_over_amber": 0.10, "flag_gap_under_amber": 0.05}
 rng = np.random.default_rng(0)
 
 
@@ -98,3 +99,21 @@ def test_second_consecutive_amber_escalates_to_red():
 def test_missing_metrics_are_skipped_not_alarmed():
     # first OOT month: no PSI reference yet; labels not matured: no Gini
     assert classify(float("nan"), float("nan"), 0, None, None, LIM)[0] == "GREEN"
+
+
+# ---------------------------------------------------------------------------
+# flag gap (calibration): predicted bad rate at 0.5 minus actual bad rate
+# ---------------------------------------------------------------------------
+
+def test_small_over_flagging_stays_green():
+    # the champion over-flags by about 6 points: safer than missing bad loans, so no alert
+    assert classify(0.03, 0.63, 0, None, None, LIM, flag_gap_3m=0.06)[0] == "GREEN"
+    assert decision_flag_gap([0.07, float("nan"), 0.04, 0.06, 0.08]) == 0.06
+
+
+def test_flag_gap_band_is_asymmetric():
+    status, reason = classify(0.03, 0.63, 0, None, None, LIM, flag_gap_3m=0.12)
+    assert status == "AMBER" and "over-flagging" in reason
+    # a 6-point miss alerts while a 6-point over-flag does not: missing bad loans costs more
+    status, reason = classify(0.03, 0.63, 0, None, None, LIM, flag_gap_3m=-0.06)
+    assert status == "AMBER" and "under-flagging" in reason

@@ -36,7 +36,8 @@ from utils.common.config import CONFIG
 from utils.common.io import parquet_exists, read_all_partitions, read_parquet
 from utils.common.log import get_logger
 from utils.common.spark_session import get_spark
-from utils.ml.drift import classify, decision_gini, feature_drift, limits as drift_limits, model_age_months
+from utils.ml.drift import (classify, decision_flag_gap, decision_gini, feature_drift,
+                             limits as drift_limits, model_age_months)
 from utils.ml.model_store import load_metadata
 from utils.ml.stability import N_BINS as _N_BINS, bin_scores as _bin_scores, psi as _psi
 from utils.transformation.validation import validate_and_write
@@ -178,13 +179,14 @@ def _feature_drift(spark, feature_cols, train_cutoff, snapshot_date):
 
 
 def _history(snapshot_date):
-    """(previous month's status, monthly Ginis oldest first) from earlier monitoring rows."""
+    """(previous month's status, monthly Ginis, monthly flag gaps), oldest first, from earlier rows."""
     prior = [pd.read_parquet(f) for d, f in _partition_files("model_monitoring") if d < snapshot_date]
     if not prior:
-        return None, []
+        return None, [], []
     hist = pd.concat(prior).sort_values("snapshot_date")
     prev_status = hist["status"].iloc[-1] if "status" in hist.columns else None
-    return prev_status, hist["gini"].tolist()
+    gaps = (hist["bad_rate_predicted"] - hist["bad_rate_actual"]).tolist()
+    return prev_status, hist["gini"].tolist(), gaps
 
 
 def _plot_feature_drift(spark, out_dir, top_n=12):
@@ -324,10 +326,12 @@ def run(snapshot_date):
         validate_and_write(drift_df, "gold", "feature_drift", snapshot_date, ["snapshot_date", "feature"])
 
     # ---- traffic light + refresh (SOP); never retrains on its own ----
-    prev_status, gini_history = _history(snapshot_date)
+    prev_status, gini_history, gap_history = _history(snapshot_date)
     gini_3m = decision_gini(gini_history + [gini])
+    flag_gap_3m = decision_flag_gap(gap_history + [bad_rate_predicted - bad_rate_actual])
     status, reason = classify(psi_score, gini_3m, len(major),
-                              f"{top_feature} {top_psi:.2f}" if top_feature else None, prev_status, lim)
+                              f"{top_feature} {top_psi:.2f}" if top_feature else None, prev_status, lim,
+                              flag_gap_3m=flag_gap_3m)
     age = model_age_months(snapshot_date, train_cutoff)
     refresh_due = age >= lim["refresh_months"]
     if status == "GREEN":
@@ -355,6 +359,7 @@ def run(snapshot_date):
         "gini":                gini,
         "psi_score":           psi_score,
         "gini_3m":             gini_3m,
+        "flag_gap_3m":         flag_gap_3m,
         "n_features_drifted":  len(major),
         "top_drift_feature":   top_feature,
         "top_drift_psi":       top_psi,
@@ -376,6 +381,7 @@ def run(snapshot_date):
         .withColumn("gini",               col("gini").cast(FloatType()))
         .withColumn("psi_score",          col("psi_score").cast(FloatType()))
         .withColumn("gini_3m",            col("gini_3m").cast(FloatType()))
+        .withColumn("flag_gap_3m",        col("flag_gap_3m").cast(FloatType()))
         .withColumn("n_features_drifted", col("n_features_drifted").cast(IntegerType()))
         .withColumn("top_drift_feature",  col("top_drift_feature").cast(StringType()))
         .withColumn("top_drift_psi",      col("top_drift_psi").cast(FloatType()))

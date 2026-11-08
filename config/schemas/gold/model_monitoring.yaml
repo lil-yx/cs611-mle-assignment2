@@ -10,6 +10,7 @@ columns:
   gini: float
   psi_score: float
   gini_3m: float
+  flag_gap_3m: float
   n_features_drifted: int
   top_drift_feature: string
   top_drift_psi: float

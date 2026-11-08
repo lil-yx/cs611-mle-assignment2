@@ -61,6 +61,10 @@ ml:
     gini_amber: 0.57              # applied to the 3-month mean Gini
     gini_red: 0.50
     feature_psi_major: 0.25       # any model input above this -> AMBER
+    # 3-month mean of (predicted bad rate at 0.5) minus (actual bad rate); asymmetric because
+    # missing bad loans costs more than flagging a few good ones
+    flag_gap_over_amber: 0.10     # over-flagging by more than 10 points -> AMBER
+    flag_gap_under_amber: 0.05    # under-flagging by more than 5 points -> AMBER
     refresh_months: 6             # months after train_cutoff -> refresh_due
   # challenger-vs-champion gate (utils/ml/promotion.py); promotion itself needs a person
   promotion:
